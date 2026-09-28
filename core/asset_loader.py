@@ -191,7 +191,17 @@ def _remove_background(surface, bg_type, char_id=None):
         "phantom": 22,
     }
 
-    def _
+    def _flood_remove(rgb_arr, alpha_arr, bg_col, tol):
+        diff = np.abs(rgb_arr.astype(np.int16) - bg_col.astype(np.int16))
+        bg_mask = diff.max(axis=2) < tol
+        labeled, num = ndimage.label(bg_mask)
+        edge_labels = set()
+        edge_labels.update(labeled[0, :].tolist())
+        edge_labels.update(labeled[w-1, :].tolist())
+        edge_labels.update(labeled[:, 0].tolist())
+        edge_labels.update(labeled[:, h-1].tolist())
+        edge_labels.discard(0)
+        for lbl in edge_labels:
             alpha_arr[labeled == lbl] = 0
 
     # Get per-cell corner colors
@@ -266,7 +276,10 @@ def load_character_sprite(char_id, target_w=TARGET_SPRITE_W):
     if cache_key in _sprites:
         return _sprites[cache_key]
 
-    
+    full = _path("sprites", f"{char_id}.png")
+    if not os.path.exists(full):
+        _sprites[cache_key] = None
+        return None
 
     raw = pygame.image.load(full).convert_alpha()
     iw, ih = raw.get_size()
