@@ -5,7 +5,49 @@ import pygame
 import math
 import random
 from settings import *
-from core.asset_loader import load_logo, load_background, get_font, draw_text
+from core.asset_loader import load_logo, load_background, get_font, draw_text, get_sprite
+
+
+def _draw_menu_silhouette(surface, cx, ground_y, t, state="idle"):
+    """Animated Shadow Fight-style silhouette for the main menu showcase panel."""
+    col = (15, 12, 12)
+    # Bob
+    bob = int(math.sin(t * 2.5) * 4)
+    base_y = ground_y + bob
+
+    # Shadow
+    sh = pygame.Surface((80, 14), pygame.SRCALPHA)
+    pygame.draw.ellipse(sh, (0, 0, 0, 80), (0, 2, 80, 10))
+    surface.blit(sh, (cx - 40, ground_y - 6))
+
+    # Head
+    pygame.draw.circle(surface, col, (cx, base_y - 180), 22)
+    # Neck
+    pygame.draw.line(surface, col, (cx, base_y - 158), (cx, base_y - 145), 9)
+    # Torso
+    pts = [(cx - 22, base_y - 145), (cx + 22, base_y - 145),
+           (cx + 18, base_y - 70), (cx - 18, base_y - 70)]
+    pygame.draw.polygon(surface, col, pts)
+
+    # Legs
+    if state in ("attack_light", "attack_heavy"):
+        pygame.draw.line(surface, col, (cx - 8, base_y - 70), (cx - 28, base_y - 10), 12)
+        pygame.draw.line(surface, col, (cx + 8, base_y - 70), (cx + 20, base_y - 10), 12)
+    else:
+        swing = math.sin(t * 4) * 12
+        pygame.draw.line(surface, col, (cx - 8, base_y - 70), (cx - 18 + int(swing), base_y - 10), 12)
+        pygame.draw.line(surface, col, (cx + 8, base_y - 70), (cx + 18 - int(swing), base_y - 10), 12)
+
+    # Arms
+    if state in ("attack_light", "attack_heavy", "special"):
+        pygame.draw.line(surface, col, (cx + 20, base_y - 138), (cx + 70, base_y - 110), 10)
+        pygame.draw.line(surface, col, (cx - 18, base_y - 138), (cx - 38, base_y - 155), 9)
+    else:
+        arm_sw = math.sin(t * 3) * 5
+        pygame.draw.line(surface, col, (cx + 20, base_y - 138),
+                         (cx + 42, base_y - 115 + int(arm_sw)), 10)
+        pygame.draw.line(surface, col, (cx - 18, base_y - 138),
+                         (cx - 36, base_y - 118 - int(arm_sw)), 9)
 
 
 class MainMenuScreen:
@@ -24,6 +66,17 @@ class MainMenuScreen:
         self._bg   = load_background("volcano", self.sw, self.sh)
         self._logo = load_logo(620, 190)
         self.audio.play_music()
+
+        # Animated showcase fighter on the right side
+        self._showcase_chars  = ["mage", "ninja", "samurai", "warrior", "phantom"]
+        self._showcase_idx    = 0
+        self._showcase_timer  = 0.0
+        self._showcase_switch = 4.0   # seconds before switching character
+        # Animated pose cycling
+        self._anim_states = ["idle", "attack_light", "attack_heavy", "special", "idle", "idle"]
+        self._anim_idx    = 0
+        self._anim_timer  = 0.0
+        self._anim_hold   = [1.2, 0.4, 0.5, 0.6, 0.8, 1.0]  # hold time for each pose
 
     def _init_embers(self):
         for _ in range(45):
@@ -67,12 +120,30 @@ class MainMenuScreen:
 
     def update(self, dt):
         self._t += dt
+
+        # Advance embers
         for e in self._embers:
             e["x"] += e["vx"] * dt * 60
             e["y"] += e["vy"] * dt * 60
             if e["y"] < -10:
                 e["y"] = self.sh + 10
                 e["x"] = random.uniform(0, self.sw)
+
+        # Advance showcase fighter animation
+        self._anim_timer += dt
+        hold = self._anim_hold[self._anim_idx % len(self._anim_hold)]
+        if self._anim_timer >= hold:
+            self._anim_timer = 0.0
+            self._anim_idx   = (self._anim_idx + 1) % len(self._anim_states)
+
+        # Switch character every N seconds
+        self._showcase_timer += dt
+        if self._showcase_timer >= self._showcase_switch:
+            self._showcase_timer = 0.0
+            self._showcase_idx   = (self._showcase_idx + 1) % len(self._showcase_chars)
+            self._anim_idx       = 0
+            self._anim_timer     = 0.0
+
         result = self._action
         self._action = None
         return result
@@ -147,6 +218,60 @@ class MainMenuScreen:
                                (e["size"], e["size"]), e["size"])
             self.screen.blit(es, (int(e["x"]), int(e["y"])),
                              special_flags=pygame.BLEND_RGBA_ADD)
+
+        # ── Animated showcase fighter (right side) ────────────────────────────
+        char_id   = self._showcase_chars[self._showcase_idx]
+        anim_state = self._anim_states[self._anim_idx % len(self._anim_states)]
+        # facing left so it looks into the menu
+        sprite = get_sprite(char_id, facing=-1, state=anim_state)
+
+        fighter_x = sw - 200   # right edge x center
+        fighter_ground_y = sh - 100
+
+        if sprite:
+            # Scale to a nice tall size
+            target_h = int(sh * 0.55)
+            ratio    = target_h / sprite.get_height()
+            target_w = int(sprite.get_width() * ratio)
+            big_sprite = pygame.transform.smoothscale(sprite, (target_w, target_h))
+
+            # Subtle idle bob
+            bob = math.sin(t * 2.2) * 5
+
+            # Glow pedestal beneath
+            ped_surf = pygame.Surface((target_w + 60, 30), pygame.SRCALPHA)
+            pygame.draw.ellipse(ped_surf, (200, 80, 0, 55), (0, 0, target_w + 60, 30))
+            self.screen.blit(ped_surf, (fighter_x - target_w // 2 - 30,
+                                        fighter_ground_y - 8))
+
+            # Vertical glow behind fighter
+            glow_h = target_h + 40
+            glow_w = target_w + 20
+            glow = pygame.Surface((glow_w, glow_h), pygame.SRCALPHA)
+            for gi in range(0, glow_w // 2, 4):
+                a = max(0, 30 - gi * 2)
+                pygame.draw.rect(glow, (220, 80, 0, a),
+                                 (gi, 0, glow_w - gi * 2, glow_h), border_radius=20)
+            self.screen.blit(glow, (fighter_x - glow_w // 2, fighter_ground_y - glow_h + 10),
+                             special_flags=pygame.BLEND_RGBA_ADD)
+
+            sx = fighter_x - target_w // 2
+            sy = int(fighter_ground_y - target_h + bob)
+            self.screen.blit(big_sprite, (sx, sy))
+
+            # Character name tag below
+            from characters.character_data import get_character
+            try:
+                cdata = get_character(char_id)
+                name  = cdata["name"].upper()
+            except Exception:
+                name = char_id.upper()
+            draw_text(self.screen, name, 22, (220, 170, 80),
+                      fighter_x, fighter_ground_y + 8, center=True, shadow=True)
+
+        else:
+            # Fallback: animated silhouette
+            _draw_menu_silhouette(self.screen, fighter_x, fighter_ground_y, t, anim_state)
 
         # Logo or text title
         logo_y = 28

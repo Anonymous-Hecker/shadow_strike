@@ -10,25 +10,26 @@ from renderer.fighter_renderer import FighterRenderer
 
 # ─── Physics Punching Bag ─────────────────────────────────────────────────────
 class PunchingBag:
-    """A ceiling-hung punching bag with pendulum physics.
-    When hit, swings proportional to attack intensity."""
+    """A ceiling-hung punching bag with real pendulum physics.
+    Pure black silhouette, no textures. Swings proportionally to hit power."""
 
     def __init__(self, x, ceiling_y):
         self.anchor_x  = x
-        self.anchor_y  = ceiling_y  # rope attach point
-        self.rope_len  = 120              # px
+        self.anchor_y  = ceiling_y
+        self.rope_len  = 160              # px — longer rope, more visible swing
         self.angle     = 0.0             # radians from vertical
         self.ang_vel   = 0.0
-        self.ang_damp  = 0.88            # damping per frame
-        self.gravity_k = 0.018           # pendulum gravity constant
+        self.ang_damp  = 0.92            # realistic damping
+        self.gravity_k = 0.015           # pendulum gravity constant
 
-        self.bag_w = 50
-        self.bag_h = 100
+        # Big, clear bag dimensions
+        self.bag_w = 80
+        self.bag_h = 160
 
-        # Hit flash timer
-        self.hit_flash = 0.0
-        # Damage numbers
+        self.hit_flash   = 0.0
+        self.flash_color = (255, 80, 0)
         self.damage_numbers = []
+        self.impact_rings   = []         # ring shockwave on hit
 
     @property
     def bag_cx(self):
@@ -36,42 +37,62 @@ class PunchingBag:
 
     @property
     def bag_cy(self):
+        # Center of bag
         return self.anchor_y + math.cos(self.angle) * self.rope_len
 
     def hit(self, attack_type, damage):
         """Apply impulse to the bag based on attack intensity."""
         impulse_map = {
-            "light":        0.08,
-            "heavy":        0.18,
-            "special":      0.22,
-            "super":        0.35,
-            "air":          0.12,
-            "dash":         0.16,
-            "counter":      0.14,
-            "slam":         0.28,
-            "sweep":        0.10,
+            "light":    0.06,
+            "heavy":    0.16,
+            "special":  0.20,
+            "super":    0.30,
+            "air":      0.10,
+            "dash":     0.14,
+            "counter":  0.12,
+            "slam":     0.26,
+            "sweep":    0.08,
         }
         impulse = impulse_map.get(attack_type, 0.10)
-        self.ang_vel += impulse * (1 if self.bag_cx < self.anchor_x else -1) + impulse
-        self.hit_flash = 0.15
-        # Add damage number
+        # Always push away from player (left = push right, right = push left)
+        direction = 1 if self.bag_cx >= self.anchor_x else -1
+        self.ang_vel += impulse * direction
+
+        # Flash colour based on attack type
+        if attack_type in ("super", "slam"):
+            self.flash_color = (255, 40, 0)
+            self.hit_flash = 0.25
+        elif attack_type in ("heavy", "special"):
+            self.flash_color = (255, 130, 0)
+            self.hit_flash = 0.18
+        else:
+            self.flash_color = (255, 220, 0)
+            self.hit_flash = 0.12
+
+        # Damage number
         self.damage_numbers.append({
-            "val": damage, "x": self.bag_cx + random.randint(-20, 20),
-            "y": self.bag_cy - 40, "vy": -80, "life": 1.2, "crit": attack_type in ("super","slam","heavy")
+            "val": damage,
+            "x": self.bag_cx + random.randint(-25, 25),
+            "y": self.bag_cy - 60,
+            "vy": -100,
+            "life": 1.4,
+            "crit": attack_type in ("super", "slam", "heavy"),
         })
+        # Impact ring shockwave
+        self.impact_rings.append({"r": 10, "alpha": 200, "cx": self.bag_cx, "cy": self.bag_cy})
 
     def update(self, dt_time):
-        # Pendulum physics: ang_acc = -gravity_k * sin(angle)
+        # Real pendulum: ang_acc = -(g/L) * sin(θ) — simplified with gravity_k
         ang_acc = -self.gravity_k * math.sin(self.angle)
         self.ang_vel += ang_acc
         self.ang_vel *= self.ang_damp
         self.angle   += self.ang_vel
 
-        # Limit swing angle
-        max_swing = math.radians(60)
+        # Limit swing angle to ±70 degrees
+        max_swing = math.radians(70)
         if abs(self.angle) > max_swing:
             self.angle   = math.copysign(max_swing, self.angle)
-            self.ang_vel *= -0.4
+            self.ang_vel *= -0.35   # bounce back
 
         if self.hit_flash > 0:
             self.hit_flash -= dt_time
@@ -81,11 +102,15 @@ class PunchingBag:
             d["life"] -= dt_time
         self.damage_numbers = [d for d in self.damage_numbers if d["life"] > 0]
 
+        for ring in self.impact_rings:
+            ring["r"]     += 3
+            ring["alpha"] -= 12
+        self.impact_rings = [r for r in self.impact_rings if r["alpha"] > 0]
+
     def is_hit_by(self, fighter):
-        """Check if fighter can hit the bag."""
-        bx = self.bag_cx
-        dist = abs(fighter.rect.centerx - bx)
-        return dist < 120 and abs(fighter.rect.bottom - self.bag_cy) < 100
+        """Check if fighter can hit the bag (generous hitbox)."""
+        dist = abs(fighter.rect.centerx - self.bag_cx)
+        return dist < 150 and abs(fighter.rect.bottom - self.bag_cy) < 130
 
     def draw(self, surface):
         bx = int(self.bag_cx)
@@ -93,56 +118,63 @@ class PunchingBag:
         ax = int(self.anchor_x)
         ay = int(self.anchor_y)
 
-        # Ceiling mount bracket
-        pygame.draw.rect(surface, (40, 30, 20), (ax - 12, ay - 18, 24, 20))
-        pygame.draw.rect(surface, (80, 60, 35), (ax - 12, ay - 18, 24, 20), 2)
+        # Ceiling bracket
+        pygame.draw.rect(surface, (30, 22, 12), (ax - 16, ay - 22, 32, 24))
+        pygame.draw.rect(surface, (80, 60, 30), (ax - 16, ay - 22, 32, 24), 2)
 
-        # Rope
-        rope_mid = (ax + (bx - ax) // 3 + random.randint(-1, 1),
-                    ay + (by - ay) // 3)
-        pygame.draw.line(surface, (100, 75, 45), (ax, ay), rope_mid, 2)
-        pygame.draw.line(surface, (100, 75, 45), rope_mid,
-                         (bx, by - self.bag_h // 2), 2)
+        # Heavy chain (3 links visible)
+        chain_top_y = ay
+        chain_bot_y = by - self.bag_h // 2
+        for i in range(4):
+            t = i / 3
+            cx_ = int(ax + (bx - ax) * t)
+            cy_ = int(chain_top_y + (chain_bot_y - chain_top_y) * t)
+            pygame.draw.circle(surface, (50, 50, 55), (cx_, cy_), 4)
+            pygame.draw.circle(surface, (100, 100, 110), (cx_, cy_), 4, 1)
 
-        # Bag shadow
-        sh = pygame.Surface((self.bag_w + 10, 10), pygame.SRCALPHA)
-        pygame.draw.ellipse(sh, (0, 0, 0, 80), (0, 0, self.bag_w + 10, 10))
-        surface.blit(sh, (bx - (self.bag_w + 10) // 2, GROUND_Y - 4))
+        # Impact rings (shockwave)
+        for ring in self.impact_rings:
+            r_surf = pygame.Surface((ring["r"] * 2 + 4, ring["r"] * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(r_surf, (255, 180, 0, int(ring["alpha"])),
+                               (ring["r"] + 2, ring["r"] + 2), ring["r"], 2)
+            surface.blit(r_surf, (int(ring["cx"]) - ring["r"] - 2,
+                                   int(ring["cy"]) - ring["r"] - 2),
+                         special_flags=pygame.BLEND_RGBA_ADD)
 
-        # Bag body color with hit flash
-        if self.hit_flash > 0:
-            bag_col  = (40, 15, 10)
-            tape_col = (200, 90, 30)
-        else:
-            bag_col  = (15, 10, 8)
-            tape_col = (30, 22, 15)
+        # Ground shadow (ellipse under bag)
+        sh_w = max(20, int(self.bag_w * (1 - abs(self.angle) / math.radians(70) * 0.3)))
+        sh = pygame.Surface((sh_w + 20, 12), pygame.SRCALPHA)
+        pygame.draw.ellipse(sh, (0, 0, 0, 90), (0, 0, sh_w + 20, 12))
+        surface.blit(sh, (bx - (sh_w + 20) // 2, GROUND_Y - 5))
 
-        # Draw rounded bag body
+        # === Pure black silhouette bag ===
         bag_rect = pygame.Rect(bx - self.bag_w // 2, by - self.bag_h // 2,
                                self.bag_w, self.bag_h)
-        pygame.draw.rect(surface, bag_col, bag_rect, border_radius=12)
-        pygame.draw.rect(surface, (100, 70, 40), bag_rect, 2, border_radius=12)
 
-        # Seam lines removed
+        if self.hit_flash > 0:
+            # Flash: draw a colored glow halo first
+            halo = pygame.Surface((self.bag_w + 40, self.bag_h + 40), pygame.SRCALPHA)
+            fa   = int(200 * (self.hit_flash / 0.25))
+            pygame.draw.rect(halo, (*self.flash_color, fa),
+                             (0, 0, self.bag_w + 40, self.bag_h + 40), border_radius=20)
+            surface.blit(halo, (bag_rect.x - 20, bag_rect.y - 20),
+                         special_flags=pygame.BLEND_RGBA_ADD)
 
-        # Tape strips (horizontal bands)
-        for ty in [by - self.bag_h // 4, by, by + self.bag_h // 4]:
-            tape_rect = pygame.Rect(bx - self.bag_w // 2, ty - 4,
-                                    self.bag_w, 8)
-            pygame.draw.rect(surface, tape_col, tape_rect)
-            pygame.draw.rect(surface, (110, 80, 45), tape_rect, 1)
+        # Pure matte black body
+        pygame.draw.rect(surface, (8, 6, 6), bag_rect, border_radius=18)
+        # Slight rim highlight so it reads against dark bg
+        pygame.draw.rect(surface, (45, 38, 35), bag_rect, 2, border_radius=18)
 
-        # Chain at top
-        for i in range(3):
-            cy_ = ay + i * 6
-            pygame.draw.circle(surface, (80, 80, 80),
-                                (ax, cy_), 3 - i // 2)
+        # Subtle top cap (where chain attaches)
+        cap_rect = pygame.Rect(bx - self.bag_w // 2 + 6, by - self.bag_h // 2 - 10,
+                               self.bag_w - 12, 18)
+        pygame.draw.ellipse(surface, (18, 14, 12), cap_rect)
+        pygame.draw.ellipse(surface, (55, 42, 30), cap_rect, 2)
 
         # Damage numbers
         for d in self.damage_numbers:
-            alpha = int(255 * min(1.0, d["life"]))
-            col   = CRIMSON if d["crit"] else (230, 200, 150)
-            size  = 30 if d["crit"] else 22
+            col  = CRIMSON if d["crit"] else (255, 210, 80)
+            size = 32 if d["crit"] else 24
             dt(surface, str(d["val"]), size, col,
                int(d["x"]), int(d["y"]), center=True, shadow=True)
 
@@ -157,7 +189,6 @@ class DojoScreen:
         self.tabs       = ["FIGHTER INFO", "TRAINING", "FULL ROSTER"]
         self.active_tab = "TRAINING"
 
-        # Get actual keybinds
         if hasattr(self.save_manager, "get_controls"):
             self.controls = self.save_manager.get_controls(1)
         else:
@@ -168,21 +199,25 @@ class DojoScreen:
         self.renderer = FighterRenderer()
 
         sw = screen.get_width()
-        # Bag placed center-right
-        self.bag = PunchingBag(sw // 2 + 100, GROUND_Y - 200)
+        sh = screen.get_height()
+        # Bag positioned right side, hanging from ceiling at ~20% from top
+        bag_anchor_x = sw - 220
+        bag_anchor_y = int(sh * 0.18)
+        self.bag = PunchingBag(bag_anchor_x, bag_anchor_y)
 
         self.last_attack_type = "light"
 
     def set_character(self, char_id):
         self.active_char_id = char_id
-        sw = self.screen.get_width()
         self.player = Fighter(self.active_char_id, 1, 350, GROUND_Y)
         self.bag.damage_numbers.clear()
+        self.bag.impact_rings.clear()
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
-                return "back"
+                self._action = "back"   # stored — returned by update()
+                return
 
             if self.active_tab == "TRAINING":
                 for atk_name in ["light", "heavy", "special", "super",
@@ -199,12 +234,15 @@ class DojoScreen:
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             mx, my = event.pos
             sw = self.screen.get_width()
+            # Back button click
+            if pygame.Rect(14, 14, 110, 36).collidepoint(mx, my):
+                self._action = "back"
+                return
             for i, tab in enumerate(self.tabs):
                 rect = pygame.Rect(sw // 2 - 300 + i * 200, 20, 180, 40)
                 if rect.collidepoint(mx, my):
                     self.active_tab = tab
 
-            # Character selector (shown on FIGHTER INFO and ROSTER tabs)
             if self.active_tab in ("FIGHTER INFO", "FULL ROSTER"):
                 for i, char in enumerate(CHARACTERS):
                     cx = 70 + (i % 5) * 220
@@ -222,25 +260,23 @@ class DojoScreen:
 
     def _do_attack(self, atk_name):
         self.last_attack_type = atk_name
-        # Check if bag is in range
         if self.bag.is_hit_by(self.player):
             char_data = get_character(self.active_char_id)
             move = char_data["moves"].get(atk_name)
             if move:
                 dmg = move.get("damage", 10)
                 self.bag.hit(atk_name, dmg)
-        # Play animation
         state_map = {
             "light": "attack_light", "heavy": "attack_heavy",
-            "special": "special", "super": "super",
-            "dash": "dash", "counter": "counter",
-            "slam": "slam", "sweep": "sweep",
+            "special": "special",    "super": "super",
+            "dash": "dash",          "counter": "counter",
+            "slam": "slam",          "sweep": "sweep",
         }
-        self.player.state = state_map.get(atk_name, "attack_light")
+        self.player.state       = state_map.get(atk_name, "attack_light")
         self.player.state_timer = 0.4
 
     def update(self, dt_time):
-        self._dt = dt_time   # store for draw()
+        self._dt = dt_time
         keys = pygame.key.get_pressed()
         if self.active_tab == "TRAINING":
             c = self.controls
@@ -254,20 +290,24 @@ class DojoScreen:
             self.player.update(dt_time, self.screen.get_width())
             self.bag.update(dt_time)
 
+        # Return and clear any pending action (ESC → back)
+        action = getattr(self, "_action", None)
+        self._action = None
+        return action
+
     def draw(self):
         dt_time = getattr(self, "_dt", 0.016)
         sw, sh = self.screen.get_width(), self.screen.get_height()
 
-        # Background — dojo with warm amber sunset tones (flat 2D)
         bg = load_background("dojo", sw, sh)
         if bg:
             self.screen.blit(bg, (0, 0))
         else:
             self.screen.fill((30, 15, 8))
 
-        # Dark overlay for readability
+        # Subtle dark overlay for readability
         ov = pygame.Surface((sw, sh), pygame.SRCALPHA)
-        ov.fill((0, 0, 0, 100))
+        ov.fill((0, 0, 0, 80))
         self.screen.blit(ov, (0, 0))
 
         # Ground line
@@ -285,6 +325,14 @@ class DojoScreen:
             dt(self.screen, tab, 20, color if self.active_tab == tab else OFF_WHITE,
                rect.centerx, rect.centery - 10, center=True)
 
+        # ── BACK button (top-left, always visible) ────────────────────────────
+        back_rect = pygame.Rect(14, 14, 110, 36)
+        pygame.draw.rect(self.screen, (35, 12, 6), back_rect, border_radius=6)
+        pygame.draw.rect(self.screen, GOLD, back_rect, 2, border_radius=6)
+        dt(self.screen, "◀  BACK", 20, GOLD,
+           back_rect.centerx, back_rect.y + 8, center=True)
+
+
         if self.active_tab == "TRAINING":
             self.draw_training()
         elif self.active_tab == "FIGHTER INFO":
@@ -295,16 +343,11 @@ class DojoScreen:
     def draw_training(self):
         sw, sh = self.screen.get_width(), self.screen.get_height()
 
-        # Draw bag
+        # Draw bag FIRST (behind player)
         self.bag.draw(self.screen)
 
-        # Draw player (fixed scale — ignore jump height changes visually)
+        # Draw player
         self.renderer.draw(self.screen, self.player)
-
-        # Ceiling rope anchor ceiling line (decorative)
-        pygame.draw.line(self.screen, (80, 60, 35),
-                         (self.bag.anchor_x - 30, 90),
-                         (self.bag.anchor_x + 30, 90), 6)
 
         # ── Move List Panel ──────────────────────────────────────────────────
         panel_rect = pygame.Rect(sw - 280, 80, 260, 390)
@@ -360,10 +403,8 @@ class DojoScreen:
         sw, sh = self.screen.get_width(), self.screen.get_height()
         char = get_character(self.active_char_id)
 
-        # Character selector strip at top
         self._draw_char_strip(80)
 
-        # Portrait panel
         portrait_x, portrait_y = 60, 170
         portrait_w, portrait_h = 220, 350
 
@@ -382,7 +423,6 @@ class DojoScreen:
         dt(self.screen, char["name"].upper(), 26, GOLD,
            portrait_x + portrait_w // 2, portrait_y + 10, center=True)
 
-        # Stats panel
         stats_x = portrait_x + portrait_w + 30
         stats = [
             ("HP",        char["stats"]["hp"]),
@@ -397,7 +437,6 @@ class DojoScreen:
             y = portrait_y + 10 + i * 42
             dt(self.screen, label, 18, GOLD, stats_x, y)
             if isinstance(val, int):
-                # bar
                 bar_rect = pygame.Rect(stats_x + 120, y + 4, 200, 18)
                 pygame.draw.rect(self.screen, (40, 20, 10), bar_rect)
                 fill = min(200, int(200 * val / 200))
@@ -409,7 +448,6 @@ class DojoScreen:
             else:
                 dt(self.screen, str(val), 18, OFF_WHITE, stats_x + 120, y)
 
-        # Move list panel
         moves_x = stats_x + 360
         dt(self.screen, "MOVES", 22, GOLD, moves_x, portrait_y + 10)
         for j, (m_name, m_data) in enumerate(char["moves"].items()):
@@ -426,7 +464,6 @@ class DojoScreen:
         dt(self.screen, "SELECT CHARACTER", 26, GOLD, sw // 2, 80, center=True)
         self._draw_char_strip(120)
 
-        # Show selected char info briefly below
         char = get_character(self.active_char_id)
         sprite = get_idle_sprite(self.active_char_id, target_w=120)
         if sprite:

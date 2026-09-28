@@ -107,14 +107,7 @@ class Fighter:
             self.reflect_pct += self.armor.get("reflect", 0)
 
     def _calc_aura_intensity(self):
-        intensity = 0.15  # base
-        if self.weapon and self.weapon.get("id") != "iron_blade":
-            intensity += 0.25
-        if self.armor and self.armor.get("id") != "cloth_wrap":
-            intensity += 0.20
-        if self.weapon:
-            intensity += min(0.4, self.weapon.get("cost", 0) / 8000)
-        return min(1.0, intensity)
+        
 
     def _get_weapon_color(self):
         if self.weapon:
@@ -140,19 +133,7 @@ class Fighter:
             self.vel_y += GRAVITY * dt * 60
 
         # Horizontal movement — acceleration-based shuffle
-        if self.state == "walk" and self.on_ground:
-            # Accelerate toward target speed
-            target_vx = self.move_dir * self.walk_max
-            diff = target_vx - self.vel_x
-            self.vel_x += diff * self.walk_accel
-        elif self.on_ground and self.state not in ("dash", "slam"):
-            # Friction / deceleration when not walking
-            self.vel_x *= 0.75
-            if abs(self.vel_x) < 0.1:
-                self.vel_x = 0
-
-        self.rect.x += int(self.vel_x * dt * 60)
-        self.rect.y += int(self.vel_y * dt * 60)
+        if 
 
         # Ground check
         ground = GROUND_Y
@@ -221,8 +202,7 @@ class Fighter:
     def _update_invincibility(self, dt):
         if self.invincible_timer > 0:
             self.invincible_timer -= dt
-            if self.invincible_timer <= 0:
-                self.is_invincible = False
+
 
     # ─── Combat ───────────────────────────────────────────────────────────────
 
@@ -297,14 +277,6 @@ class Fighter:
         return hit_results, total_dmg, any_crit, particles
 
     def _can_hit(self, enemy, attack_range):
-        """Check if enemy is within attack range and in the correct direction."""
-        if enemy is self or enemy.state == "dead":
-            return False
-        dx = enemy.rect.centerx - self.rect.centerx
-        if self.facing != (1 if dx > 0 else -1):
-            return False
-        dist = abs(dx)
-        return dist < attack_range
 
     def _apply_hit(self, enemy, move):
         """Apply damage to enemy, considering their block, dodge, armor, and our traits."""
@@ -436,6 +408,15 @@ class Fighter:
             self.hp = min(self.max_hp, self.hp + 20)
         elif effect == "physical_shield":
             self.shield_hp = 30
+                    """Check if enemy is within attack range and in the correct direction."""
+        if enemy is self or enemy.state == "dead":
+            return False
+        dx = enemy.rect.centerx - self.rect.centerx
+        if self.facing != (1 if dx > 0 else -1):
+            return False
+        dist = abs(dx)
+        return dist < attack_range
+
 
     def _apply_buff(self, move):
         effect = move.get("effect")
