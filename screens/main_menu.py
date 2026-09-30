@@ -75,10 +75,14 @@ class MainMenuScreen:
         self._options  = ["PLAY", "DOJO", "SKILLS", "ARMORY", "PROFILE", "SETTINGS", "QUIT"]
         self._action   = None
 
-        # ── Background: dark palace/storm — no bright volcano ─────────────────
-        self._bg = load_background("palace", self.sw, self.sh)
-        if self._bg is None:
-            self._bg = load_background("storm_castle", self.sw, self.sh)
+        # ── Rotating backgrounds: palace → temple → volcano ─────────────────
+        _bg_names = ["palace", "temple_new", "volcano"]
+        self._bgs  = [load_background(n, self.sw, self.sh) for n in _bg_names]
+        self._bg_idx      = 0          # current bg index
+        self._bg_timer    = 0.0        # time on current bg
+        self._bg_switch   = 25.0       # seconds per background
+        self._bg_fade     = 0.0        # 0.0 = current, 1.0 = next (crossfade progress)
+        self._bg_fading   = False      # True while crossfading
 
         self._logo = load_logo(620, 190)
         self.audio.play_music()
@@ -174,6 +178,19 @@ class MainMenuScreen:
             if p["y"] > self.sh + 10:
                 self._particles[self._particles.index(p)] = self._new_particle()
                 self._particles[-1]["y"] = -10
+
+        # Background rotation + crossfade
+        self._bg_timer += dt
+        if self._bg_fading:
+            self._bg_fade += dt * 1.5          # crossfade speed (lower = slower)
+            if self._bg_fade >= 1.0:
+                self._bg_fade   = 0.0
+                self._bg_fading = False
+                self._bg_idx    = (self._bg_idx + 1) % len(self._bgs)
+                self._bg_timer  = 0.0
+        elif self._bg_timer >= self._bg_switch:
+            self._bg_fading = True
+            self._bg_fade   = 0.0
 
         # Pose cycling
         self._anim_timer += dt
@@ -299,11 +316,17 @@ class MainMenuScreen:
         t  = self._t
         sw, sh = self.sw, self.sh
 
-        # ── 1. Background ─────────────────────────────────────────────────────
-        if self._bg:
-            self.screen.blit(self._bg, (0, 0))
+        # ── 1. Background (crossfading between 3 bgs) ───────────────────────
+        cur_bg  = self._bgs[self._bg_idx]
+        next_bg = self._bgs[(self._bg_idx + 1) % len(self._bgs)]
+        if cur_bg:
+            self.screen.blit(cur_bg, (0, 0))
         else:
             self.screen.fill((8, 6, 12))
+        if self._bg_fading and next_bg:
+            fade_surf = next_bg.copy()
+            fade_surf.set_alpha(int(self._bg_fade * 255))
+            self.screen.blit(fade_surf, (0, 0))
 
         # Heavy dark vignette — makes it feel cinematic, not garish
         vignette = pygame.Surface((sw, sh), pygame.SRCALPHA)
@@ -326,10 +349,7 @@ class MainMenuScreen:
                                (p["size"], p["size"]), p["size"])
             self.screen.blit(ps, (int(p["x"]), int(p["y"])))
 
-        # ── 3. Showcase fighter (drawn BEFORE info bar so bar overlays it) ────
-        self._draw_showcase_fighter(t)
-
-        # ── 4. Logo ───────────────────────────────────────────────────────────
+        # ── 3. Logo ───────────────────────────────────────────────────────────
         logo_y = 28
         if self._logo:
             pulse = math.sin(t * 1.4) * 3
@@ -348,7 +368,7 @@ class MainMenuScreen:
                       sw // 2, logo_y + 50,
                       shadow=True, shadow_color=(0, 0, 0), center=True)
 
-        # ── 5. Player info bar ────────────────────────────────────────────────
+        # ── 4. Player info bar — drawn BEFORE fighter so sprite is on top ─────
         gid   = self.save.get("gamer_id", "WARRIOR")
         level = self.save.get("level", 1)
         coins = self.save.get("coins", 0)
@@ -360,6 +380,9 @@ class MainMenuScreen:
                   f"{gid.upper()}    LV. {level}    COINS: {coins}",
                   20, (200, 160, 80), sw // 2, 265,
                   shadow=False, center=True)
+
+        # ── 5. Showcase fighter — drawn AFTER info bar so it stands in front ──
+        self._draw_showcase_fighter(t)
 
         # ── 6. Menu items ─────────────────────────────────────────────────────
         for i, opt in enumerate(self._options):
