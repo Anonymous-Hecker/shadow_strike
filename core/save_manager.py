@@ -4,8 +4,9 @@ Save Manager — Persistent save/load via JSON
 import json
 import os
 from settings import *
+from core.paths import user_data_dir
 
-SAVE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "save_data.json")
+SAVE_PATH = os.path.join(user_data_dir(), "save_data.json")
 
 DEFAULT_SAVE = {
     "gamer_id":       "Shadow Warrior",

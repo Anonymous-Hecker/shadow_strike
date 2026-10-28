@@ -33,15 +33,33 @@ To handle the complex interplay of animations, hitboxes, and invincibility frame
 
 ## 🚀 How to Run
 
+### Option A - Download and play (Windows / Linux)
+
+Grab the latest zip from the [Releases page](https://github.com/Anonymous-Hecker/shadow_strike/releases), unzip it, and run `ShadowStrike` (`ShadowStrike.exe` on Windows). No Python needed.
+
+> Windows may show a "Windows protected your PC" (SmartScreen) warning because the exe is not code-signed. Click **More info -> Run anyway**.
+> Your progress is saved to `%APPDATA%\ShadowStrike` (Windows) or `~/.local/share/ShadowStrike` (Linux). If the game ever closes unexpectedly, the reason is written to `crash.log` in that folder.
+
+### Option B - Run from source
+
 1. Ensure you have Python 3.10+ installed.
 2. Install the required dependencies:
    ```bash
-   pip install pygame numpy scipy opencv-python
+   pip install -r requirements.txt
    ```
 3. Run the game:
    ```bash
    python main.py
    ```
+
+### Building the release yourself
+
+* **Windows (local):** run `.\build_windows.ps1` -> `release\ShadowStrike-windows.zip`
+* **Automatic (Windows + Linux):** push a version tag and GitHub Actions builds both and attaches them to a Release:
+  ```bash
+  git tag v1.0.0
+  git push origin v1.0.0
+  ```
 
 ## 🎮 Controls
 

@@ -12,8 +12,9 @@ SPRITE SYSTEM (key design decisions):
 """
 import pygame
 import os
+from core.paths import resource_path
 
-ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+ASSETS_DIR = resource_path("assets")
 FONT_PATH  = os.path.join(ASSETS_DIR, "ui", "turok.ttf")
 
 _cache   = {}

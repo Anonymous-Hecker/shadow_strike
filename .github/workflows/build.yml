@@ -1,0 +1,62 @@
+name: Build releases
+
+# Push a tag like  v1.0.0  and GitHub builds the game for Windows and Linux
+# and attaches the zips to a Release page. You can also run it by hand from
+# the Actions tab to just test the build.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: ShadowStrike-windows
+          - os: ubuntu-latest
+            artifact: ShadowStrike-linux
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build
+        run: python -m PyInstaller --noconfirm --clean shadow_strike.spec
+
+      - name: Zip (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/ShadowStrike -DestinationPath ${{ matrix.artifact }}.zip
+
+      - name: Zip (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          chmod +x dist/ShadowStrike/ShadowStrike
+          cd dist && zip -r ../${{ matrix.artifact }}.zip ShadowStrike
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.zip
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact }}.zip

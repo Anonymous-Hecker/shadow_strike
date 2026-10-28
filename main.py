@@ -1,26 +1,41 @@
 """
-Shadow Strike — Main Entry Point
+Shadow Strike - Main Entry Point
 Run: python main.py
 """
 import os
 import sys
+import traceback
 
 # Ensure the game root is in the Python path
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+
+def _log_crash():
+    """A packaged build has no console, so write crashes to a log file."""
+    try:
+        from core.paths import user_data_dir
+        path = os.path.join(user_data_dir(), "crash.log")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(traceback.format_exc())
+        return path
+    except Exception:
+        return None
+
 
 def main():
-    try:
-        import numpy  # check numpy is available for audio
-    except ImportError:
-        print("[Shadow Strike] Installing numpy for procedural audio...")
-        import subprocess
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "numpy"])
-        import numpy
-
     from core.game import Game
     game = Game()
     game.run()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SystemExit:
+        raise
+    except Exception:
+        log = _log_crash()
+        traceback.print_exc()
+        if log:
+            print(f"[Shadow Strike] Crash details saved to: {log}")
+        sys.exit(1)

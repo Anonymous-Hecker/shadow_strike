@@ -36,3 +36,7 @@ Thumbs.db
 
 # Save files (optional: keep if you want users to start fresh)
 save_data.json
+
+# Release builds
+release/
+*.spec.bak
