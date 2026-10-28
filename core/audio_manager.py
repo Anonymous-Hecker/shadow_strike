@@ -208,7 +208,20 @@ class AudioManager:
             t_full[start:end] += note
         sfx["level_up"] = self._to_sound(t_full)
 
+        # Typewriter tick — short percussive click, like a vintage key press
+        # Blend of a very fast noise burst (the mechanical impact) and a
+        # tiny pitched pluck (the spring return). Kept very quiet.
+        tw_dur = 0.022
+        tw_t   = np.linspace(0, tw_dur, int(sr * tw_dur))
+        tw_noise  = 0.55 * self._noise(tw_dur, amp=1.0)[:len(tw_t)] * np.exp(-180 * tw_t)
+        tw_pluck  = 0.30 * np.sin(2 * np.pi * 3800 * tw_t) * np.exp(-220 * tw_t)
+        tw_wave   = self._envelope(tw_noise + tw_pluck,
+                                   attack=0.001, decay=0.008,
+                                   sustain=0.0,  release=0.013)
+        sfx["typewriter_tick"] = self._to_sound(tw_wave)
+
         self._sfx_cache = sfx
+
 
     # ─── Background Music Synthesis ───────────────────────────────────────────
     def _build_music(self):

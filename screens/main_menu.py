@@ -1,6 +1,8 @@
 """
 Main Menu — Shadow Strike
 COMMIT 1: Show only player's selected/favourite character. Dark atmosphere bg.
+COMMIT 2: Rotating backgrounds, info bar behind the fighter.
+COMMIT 3: Character dialogue box with typewriter text and choices.
 """
 import pygame
 import math
@@ -8,6 +10,8 @@ import random
 from settings import *
 from core.asset_loader import load_logo, load_background, get_font, draw_text, get_sprite
 from characters.character_data import get_character, CHARACTERS
+from screens.dialogue_box import DialogueBox
+from screens.dialogue_data import build_messages
 
 
 # ── Fallback animated silhouette (used when sprite sheet is missing) ──────────
@@ -115,6 +119,14 @@ class MainMenuScreen:
         self._anim_timer = 0.0
         self._anim_hold  = [1.4, 0.6, 0.35, 0.5, 0.45, 0.7, 0.55, 0.9]
 
+        # ── Character dialogue box (Champion Island style) ───────────────────
+        self._dialogue = DialogueBox(self.screen, self.audio, self._char_name,
+                                     self._aura,
+                                     build_messages(self._char_id, self._player_level()),
+                                     self.save.data)
+
+    def _player_level(self):
+        return self.save.get("level", 1)
     # ── Particles ─────────────────────────────────────────────────────────────
     def _init_particles(self):
         for _ in range(55):
@@ -159,6 +171,9 @@ class MainMenuScreen:
                         self._selected = i
                         self.audio.play_sfx("select")
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            # Dialogue box gets the click first
+            if self._dialogue.handle_click(event.pos):
+                return
             for i in range(len(self._options)):
                 if self._opt_rect(i).collidepoint(event.pos):
                     self.audio.play_sfx("confirm")
@@ -211,6 +226,11 @@ class MainMenuScreen:
             except Exception:
                 self._aura      = (160, 30, 30)
                 self._char_name = self._char_id.upper()
+            self._dialogue.refresh_char(self._char_name, self._aura,
+                                        build_messages(self._char_id, self._player_level()),
+                                        self.save.data)
+
+        self._dialogue.update(dt)
 
         result = self._action
         self._action = None
@@ -276,15 +296,18 @@ class MainMenuScreen:
             # Thin vertical aura beam behind character — uses char's own colour
             beam_w = max(30, target_w // 3)
             beam_h = target_h + 30
-            beam   = pygame.Surface((beam_w, beam_h), pygame.SRCALPHA)
+            # BLEND_RGB_ADD ignores alpha, so pre-multiply the colour by the
+            # fade strength instead (otherwise the beam is a solid bar).
+            beam   = pygame.Surface((beam_w, beam_h))
             for bi in range(beam_w // 2):
-                a = max(0, int(40 * (1 - bi / (beam_w / 2))))
-                pygame.draw.rect(beam, (*self._aura, a),
-                                 (bi, 0, beam_w - bi * 2, beam_h))
+                k = 0.18 * (1 - bi / (beam_w / 2))
+                col = (int(self._aura[0] * k), int(self._aura[1] * k),
+                       int(self._aura[2] * k))
+                pygame.draw.rect(beam, col, (bi, 0, beam_w - bi * 2, beam_h))
             self.screen.blit(beam,
                              (fighter_x - beam_w // 2,
                               fighter_ground - beam_h + 10),
-                             special_flags=pygame.BLEND_RGBA_ADD)
+                             special_flags=pygame.BLEND_RGB_ADD)
 
             # Small ellipse shadow on ground
             ped = pygame.Surface((target_w + 20, 18), pygame.SRCALPHA)
@@ -412,6 +435,9 @@ class MainMenuScreen:
             draw_text(self.screen, opt, 34, col,
                       rect.x + 42, rect.y + 10 + pulse_y,
                       shadow=True, shadow_color=(0, 0, 0))
+
+        # ── 6b. Character dialogue box ────────────────────────────────────────
+        self._dialogue.draw()
 
         # ── 7. Bottom hint ────────────────────────────────────────────────────
         draw_text(self.screen,
