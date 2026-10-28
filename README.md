@@ -1,86 +1,89 @@
 # Shadow Strike 🥋
 
-Shadow Strike is an action-packed 2D fighting game built entirely in Python using the Pygame library. It blends classic arcade fighting mechanics with modern progression systems, featuring a roster of 10 unique fighters, a skill tree, dynamic particle effects, and a physics-based training dojo.
+**A dark-fantasy 2D arcade fighting game with RPG progression, built from scratch in Python + Pygame.**
 
-## 🌟 Key Features
+Pick one of 10 fighters, battle the CPU or a friend on the same keyboard, earn coins and XP, unlock new moves in the Skill Tree, gear up in the Armory, and train in a physics-based Dojo.
 
-* **10 Unique Fighters**: Choose from a diverse roster including Warrior, Ninja, Rogue, Mage, Berserker, Shadow, Guardian, Monk, Phantom, and Samurai. Each character has distinct base stats (HP, Stamina, Speed, Strength, Defense), critical hit traits, and attack ranges.
-* **Deep Combat System**:
-  * **Attacks**: Light, Heavy, Air, Special, and Super attacks.
-  * **Mechanics**: Blocking, dodging, and a newly implemented **Sweep** move (disarms and stuns the opponent).
-  * **Combos**: String together attacks to build combo multipliers and deal devastating damage.
-* **Skill Tree Progression**: 
-  * Earn coins through battles and level up to unlock new moves across 4 tiers: Novice, Adept, Master, and Shadow.
-  * Unlockable abilities include Dash Strike, Ground Slam, Counter Strike, Shadow Step, and Rage Form.
-* **Physics-Based Dojo**: A dedicated training area featuring a swinging punching bag with real pendulum physics that reacts proportionally to your hit strength.
-* **Dynamic Arenas**: Fight in beautifully rendered environments like the Temple, Storm Castle, and Night Market, brought to life with custom particle systems (rain, sparks, lanterns).
-* **AI Opponents**: Test your skills against computer-controlled fighters in single-player mode.
+![Shadow Strike main menu](docs/screenshot_menu.png)
 
-## 🛠️ Technical Highlights & Challenges
+## ⬇️ Play it now
 
-Building Shadow Strike involved solving several complex technical challenges, especially regarding asset management and game loop architecture:
+1. Open the **[latest release](https://github.com/Anonymous-Hecker/shadow_strike/releases/latest)**.
+2. Download `ShadowStrike-windows.zip` (or `ShadowStrike-linux.zip`).
+3. Unzip it and run **`ShadowStrike.exe`** (Windows) or **`./ShadowStrike`** (Linux). No Python needed.
 
-### 1. The Sprite Transparency Problem (The "Ghost" Bug)
-**The Issue:** The game utilizes AI-generated character sprite sheets. These sheets often came with non-uniform, gradient, or textured backgrounds (rather than pure green-screen or black). Standard thresholding or `set_colorkey()` made characters look like ghosts (hollowed out) or left ugly colored borders.
-**The Solution:** We implemented a custom **connected-component flood-fill algorithm using `scipy.ndimage`**. By sampling the exact corner pixels of each individual animation cell and finding connected regions, we surgically removed the background while perfectly preserving the character's interior pixels—even if the character wore dark armor that matched the background color. We also added per-character tolerance overrides to handle tricky sprites.
+> **Windows SmartScreen:** the exe isn't code-signed, so Windows may say *"Windows protected your PC"*. Click **More info → Run anyway**.
+>
+> **Saves & crash reports:** progress is stored in `%APPDATA%\ShadowStrike` (Windows) or `~/.local/share/ShadowStrike` (Linux). If the game ever closes unexpectedly, the reason is written to `crash.log` in that folder.
 
-### 2. Combat Facing Logic
-**The Issue:** Initially, characters would face the direction they were moving. This meant if you backed away from an enemy to dodge, your character would turn their back to the opponent, breaking the fighting game immersion.
-**The Solution:** We decoupled movement direction from sprite facing direction. The combat loop now recalculates relative positions (`face_opponent()`) every frame, ensuring fighters always keep their eyes on their target, regardless of their movement vector.
+Prefer to run from source? See [Run from source](#-run-from-source).
 
-### 3. State Machine Architecture
-To handle the complex interplay of animations, hitboxes, and invincibility frames, every fighter operates on a robust state machine (`idle`, `walk`, `jump`, `attack_light`, `hurt`, `dead`, etc.). This ensures smooth transitions and prevents buggy behavior like attacking while stunned or jumping while dead.
+## 🌟 Features
 
-## 🚀 How to Run
+* **10 unique fighters** in 5 classes (Warrior, Rogue, Mage, Guardian, Shadow): Warlord, Berserker, Shadowblade, Kage, Void Mage, Wraith, Ironclad, Iron Monk, The Shadow and Oni Blade. Each has its own stats, attack ranges and critical-hit trait. Stronger fighters unlock as you level up.
+* **Combat system:** light, heavy, special and super attacks, blocking, dash strike, counter strike, ground slam and a **sweep** that disarms and stuns. Chain hits into combos for bonus damage.
+* **Single player or local 2-player:** fight the CPU on **5 difficulty levels**, or share one keyboard. Matches are best of 3 rounds, 99 seconds each.
+* **Skill Tree:** spend your progress across four tiers (Novice → Adept → Master → Shadow) to unlock Dash Strike, Sweep, Counter Strike, Ground Slam, Special Move, Ultra Hit, Shadow Step and Rage Form.
+* **Armory:** buy and equip weapons and armor with the coins you win.
+* **Physics-based Dojo:** a training hall with a punching bag that swings like a real pendulum, reacting to how hard you hit.
+* **Fighters that talk back:** the main menu shows your favourite fighter, who chats with you in a typewriter-style dialogue box, reacts to your stats and tells you when the next fighter in their class is ready to unlock.
+* **Atmosphere:** moody arenas with particle effects, and **all music and sound effects are generated in code** at startup, so there are no audio files.
 
-### Option A - Download and play (Windows / Linux)
+## 🎮 Controls
 
-Grab the latest zip from the [Releases page](https://github.com/Anonymous-Hecker/shadow_strike/releases), unzip it, and run `ShadowStrike` (`ShadowStrike.exe` on Windows). No Python needed.
+| Action | Player 1 | Player 2 |
+|---|---|---|
+| Move left / right | `A` / `D` | `←` / `→` |
+| Jump | `W` | `↑` |
+| Light attack | `J` | `Numpad 1` |
+| Heavy attack | `K` | `Numpad 2` |
+| Special | `L` | `Numpad 3` |
+| Super | `U` | `Numpad +` |
+| Block | `;` | `Numpad 0` |
+| Dash strike *(skill)* | `F` | `Numpad 4` |
+| Counter strike *(skill)* | `G` | `Numpad 5` |
+| Ground slam *(skill)* | `H` | `Numpad 6` |
+| Sweep *(skill)* | `N` | `Numpad 7` |
 
-> Windows may show a "Windows protected your PC" (SmartScreen) warning because the exe is not code-signed. Click **More info -> Run anyway**.
-> Your progress is saved to `%APPDATA%\ShadowStrike` (Windows) or `~/.local/share/ShadowStrike` (Linux). If the game ever closes unexpectedly, the reason is written to `crash.log` in that folder.
+Skill moves must be unlocked in the **Skill Tree** first. Menus: `W`/`S` or the mouse to navigate, `Enter` to select. `F11` toggles fullscreen. Controls can be changed in **Settings**.
 
-### Option B - Run from source
+## 🐍 Run from source
 
-1. Ensure you have Python 3.10+ installed.
-2. Install the required dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Run the game:
-   ```bash
-   python main.py
-   ```
+Requires Python 3.10+.
+
+```bash
+git clone https://github.com/Anonymous-Hecker/shadow_strike.git
+cd shadow_strike
+pip install -r requirements.txt
+python main.py
+```
 
 ### Building the release yourself
 
-* **Windows (local):** run `.\build_windows.ps1` -> `release\ShadowStrike-windows.zip`
-* **Automatic (Windows + Linux):** push a version tag and GitHub Actions builds both and attaches them to a Release:
+* **Windows (local):** run `.\build_windows.ps1`, which produces `release\ShadowStrike-windows.zip`.
+* **Automatic (Windows + Linux):** pushing a version tag makes GitHub Actions build both and attach them to a Release:
   ```bash
   git tag v1.0.0
   git push origin v1.0.0
   ```
 
-## 🎮 Controls
+## 🛠️ Technical highlights
 
-### Player 1
-* **Movement**: `W`, `A`, `S`, `D`
-* **Light Attack**: `Q`
-* **Heavy Attack**: `E`
-* **Special**: `Z`
-* **Super**: `X`
-* **Sweep**: `N`
-* **Block**: `Shift`
-* **Dash**: `F`
+### Sprite transparency (the "Ghost" bug)
+The character sprites are AI-generated sheets whose backgrounds are gradients and noise, not clean green-screen. Simple colour-keying left ugly borders, and threshold-based removal hollowed out dark armour so fighters looked like ghosts. The fix is a **connected-component flood fill** (`scipy.ndimage`): sample the corners of each animation cell and remove only the background-coloured pixels that connect to the cell's edge, so the character's body acts as a wall and stays intact.
 
-### Player 2 (Local Multiplayer)
-* **Movement**: Arrow Keys
-* **Light Attack**: `Numpad 1`
-* **Heavy Attack**: `Numpad 2`
-* **Special**: `Numpad 4`
-* **Super**: `Numpad 5`
-* **Sweep**: `Numpad 7`
-* **Block**: `Right Shift`
-* **Dash**: `Numpad 8`
+### Facing logic
+Early builds made fighters face the way they walked, so backing away turned your back on the enemy. Movement and facing are now decoupled: every frame the fighter faces its opponent.
 
-*Note: Global controls like Fullscreen (`F11`) and Pause (`ESC`) are also available.*
+### State machines
+Each fighter runs on a state machine (`idle`, `walk`, `jump`, `attack_light`, `hurt`, `dead`, …) so you can't attack while stunned or jump while dead.
+
+### Procedural audio
+Every sound effect and the battle music are synthesised with NumPy at launch (sine/square/noise with envelopes), including the dialogue box's typewriter tick, so the game ships with zero audio assets.
+
+### Packaging
+Shipped with PyInstaller. Read-only assets are bundled, while saves and crash logs go to a per-user folder so progress survives updates. GitHub Actions builds Windows and Linux releases from a version tag.
+
+## 📓 Devlogs
+
+The full development story, including the bugs, is in [DEVLOGS.md](DEVLOGS.md).
